@@ -25,6 +25,10 @@ SCREEN_CORNER = (0, 0)
 LEFT_SCORE_CORNER = ((SCREEN_SIZE[0] / 2) - 1.5 * SCORE_IMAGE_SIZE[0], SCREEN_SIZE[1] / 10)
 COLON_CORNER = ((SCREEN_SIZE[0] / 2) - 0.5 * SCORE_IMAGE_SIZE[0], SCREEN_SIZE[1] / 10)
 RIGHT_SCORE_CORNER = ((SCREEN_SIZE[0] / 2) + 0.5 * SCORE_IMAGE_SIZE[0], SCREEN_SIZE[1] / 10)
+RIGHT_TEXT_LOCATION = (SCREEN_SIZE[0] * 0.8, SCREEN_SIZE[1] / 3)
+LEFT_TEXT_LOCATION = (SCREEN_SIZE[0] * 0.2, SCREEN_SIZE[1] / 3)
+PAUSE_TEXT_LOCATION = (SCREEN_SIZE[0] / 2, SCREEN_SIZE[1] / 4)
+WIN_TEXT_LOCATION = (SCREEN_SIZE[0] / 2, SCREEN_SIZE[1] / 3)
 
 # COLORS
 LEFT_PAD_COLOR = (0, 255, 64)
@@ -45,8 +49,8 @@ EXIT = pg.K_ESCAPE
 # TIMING
 FPS = 120
 BALL_SPEED = FPS / 2.0
-RIGHT_PAD_SPEED = FPS / 3.0
-LEFT_PAD_SPEED = FPS / 3.0
+RIGHT_PAD_SPEED = FPS / 2.0
+LEFT_PAD_SPEED = FPS / 2.0
 BALL_COUNTER_MAX = FPS / BALL_SPEED
 RIGHT_PAD_COUNTER_MAX = FPS / RIGHT_PAD_SPEED
 LEFT_PAD_COUNTER_MAX = FPS / LEFT_PAD_SPEED
@@ -72,13 +76,13 @@ RIGHT_PAD_SOUND = path.join("sfx", "ting.wav")
 LEFT_PAD_SOUND = path.join("sfx", "tong.wav")
 
 # TEXT
-# TODO
 SANS = path.join("fonts", "comic.ttf")
-FONT_SIZE = 69
+WIN_FONT_SIZE = 69
+INSTRUCTIONS_FONT_SIZE = 32
 LEFT_WIN_TEXT = "left pad wins!"
 RIGHT_WIN_TEXT = "right pad wins!"
-LEFT_INSTRUCTIONS = "  left pad:  \nW - go up\nS - go down\nSPACE - pause/start\nESC - exit"
-RIGHT_ISNTRUCTIONS = "  right pad:  \nUP - go up\nDOWN - go down\nSPACE - pause/start\nESC - exit"
+LEFT_INSTRUCTIONS = "left pad:\nW - go up\nS - go down\nSPACE - pause/start\nESC - exit"
+RIGHT_INSTRUCTIONS = "right pad:\nUP - go up\nDOWN - go down\nSPACE - pause/start\nESC - exit"
 PAUSE_TEXT = "    game paused.\npress space to continue"
 
 # ETC
@@ -118,7 +122,7 @@ def draw_score(state_dict, image_dict, screen):
 def start_game(screen, image_dict):
     # init dict with defaults
     state_dict = {"done": False,
-                  "paused": False,
+                  "paused": True,
                   "game_over": False,
                   "left_pad_corner": [LEFT_PAD_X, PAD_START_Y],
                   "right_pad_corner": [RIGHT_PAD_X, PAD_START_Y],
@@ -135,10 +139,9 @@ def start_game(screen, image_dict):
                   "right_score": 0, }
 
     # draw defaults
-    draw_pad(screen, state_dict["left_pad_corner"], "left")
-    draw_pad(screen, state_dict["right_pad_corner"], "right")
-    draw_ball(screen, state_dict["ball_corner"])
-    draw_score(state_dict, image_dict, screen)
+    render_screen(screen, state_dict, image_dict)
+    draw_pause(image_dict, screen)
+    pg.display.flip()
 
     return state_dict
 
@@ -280,20 +283,57 @@ def check_exit(state_dict, events):
 
 
 def get_images():
-    sans = pg.font.Font(SANS, FONT_SIZE)
-    left_wins_text = sans.render(LEFT_WIN_TEXT, True, LEFT_WIN_COLOR)
-    right_wins_text = sans.render(RIGHT_WIN_TEXT, True, RIGHT_WIN_COLOR)
+    big_sans = pg.font.Font(SANS, WIN_FONT_SIZE)
+    small_sans = pg.font.Font(SANS, INSTRUCTIONS_FONT_SIZE)
+
+    left_wins_text = [big_sans.render(LEFT_WIN_TEXT, True, LEFT_WIN_COLOR)]
+    right_wins_text = [big_sans.render(RIGHT_WIN_TEXT, True, RIGHT_WIN_COLOR)]
+
+    left_instructions_texts = []
+    for t in LEFT_INSTRUCTIONS.splitlines():
+        left_instructions_texts.append(small_sans.render(t, True, LEFT_WIN_COLOR))
+
+    right_instructions_texts = []
+    for t in RIGHT_INSTRUCTIONS.splitlines():
+        right_instructions_texts.append(small_sans.render(t, True, RIGHT_WIN_COLOR))
+
+    pause_texts = []
+    for t in PAUSE_TEXT.splitlines():
+        pause_texts.append(small_sans.render(t, True, BALL_COLOR))
+
     d = {0: pg.image.load(ZERO), 1: pg.image.load(ONE), 2: pg.image.load(TWO),
          3: pg.image.load(THREE), "colon": pg.image.load(COLON), "left win": left_wins_text,
-         "right win": right_wins_text, }
+         "right win": right_wins_text, "left instructions": left_instructions_texts,
+         "right instructions": right_instructions_texts, "pause": pause_texts}
 
     return d
+
+
+def blit_text(screen, images, location_above):
+    assert len(images) > 0, "bad input to blit_text"
+
+    height = images[0].get_height()
+    max_width = max(i.get_width() for i in images)
+    corner = (location_above[0] - max_width/2, location_above[1])
+
+    for i, text in enumerate(images):
+        my_corner = (corner[0], corner[1] + i * height)
+        screen.blit(text, my_corner)
+
+
+def draw_pause(image_dict, screen):
+    blit_text(screen, image_dict["right instructions"], RIGHT_TEXT_LOCATION)
+    blit_text(screen, image_dict["left instructions"], LEFT_TEXT_LOCATION)
+    blit_text(screen, image_dict["pause"], PAUSE_TEXT_LOCATION)
 
 
 def check_pause(state_dict, events, screen, image_dict):
     for event in events:
         if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
             state_dict["paused"] = not state_dict["paused"]
+            draw_pause(image_dict, screen)
+            pg.display.flip()
+
             if state_dict["game_over"]:
                 # reset game after game over
                 state_dict = start_game(screen, image_dict)
@@ -302,15 +342,13 @@ def check_pause(state_dict, events, screen, image_dict):
 
 def check_winner(state_dict, screen, image_dict):
     if state_dict["left_score"] == MAX_SCORE:
-        left = image_dict["left win"]
         state_dict["paused"] = state_dict["game_over"] = True
-        screen.blit(left, (SCREEN_SIZE[0] / 2 - left.get_width() / 2, SCREEN_SIZE[1] / 2 - left.get_height() / 2))
+        blit_text(screen, image_dict["left win"], WIN_TEXT_LOCATION)
         pg.display.flip()
 
     elif state_dict["right_score"] == MAX_SCORE:
-        right = image_dict["right win"]
         state_dict["paused"] = state_dict["game_over"] = True
-        screen.blit(right, (SCREEN_SIZE[0] / 2 - right.get_width() / 2, SCREEN_SIZE[1] / 2 - right.get_height() / 2))
+        blit_text(screen, image_dict["right win"], WIN_TEXT_LOCATION)
         pg.display.flip()
 
 
@@ -325,14 +363,15 @@ def main():
     play the nong game.
     :return:
     """
+
     pg.mixer.pre_init(22050, -16, 2, 1024)  # no idea why this works
     pg.init()
+    pg.display.set_caption("nong")
     pg.mixer.init()
     clock = pg.time.Clock()
     screen = pg.display.set_mode(SCREEN_SIZE)
     image_dict = get_images()
     sound_dict = get_sounds()
-    # TODO: start in paused and print keys to screen
     state_dict = start_game(screen, image_dict)
 
     while not state_dict["done"]:
