@@ -65,18 +65,19 @@ RIGHT_DIRECTION = 0
 LEFT_DIRECTION = math.pi
 
 # IMAGES
-ZERO = path.join("sprites", "0.png")
-ONE = path.join("sprites", "1.png")
-TWO = path.join("sprites", "2.png")
-THREE = path.join("sprites", "3.png")
-COLON = path.join("sprites", "colon.png")
+MY_DIR = path.dirname(__file__)
+ZERO = path.join(MY_DIR, "sprites", "0.png")
+ONE = path.join(MY_DIR, "sprites", "1.png")
+TWO = path.join(MY_DIR, "sprites", "2.png")
+THREE = path.join(MY_DIR, "sprites", "3.png")
+COLON = path.join(MY_DIR, "sprites", "colon.png")
 
 # SOUNDS
-RIGHT_PAD_SOUND = path.join("sfx", "ting.wav")
-LEFT_PAD_SOUND = path.join("sfx", "tong.wav")
+RIGHT_PAD_SOUND = path.join(MY_DIR, "sfx", "ting.wav")
+LEFT_PAD_SOUND = path.join(MY_DIR, "sfx", "tong.wav")
 
 # TEXT
-SANS = path.join("fonts", "comic.ttf")
+SANS = path.join(MY_DIR, "fonts", "comic.ttf")
 WIN_FONT_SIZE = 69
 INSTRUCTIONS_FONT_SIZE = 32
 LEFT_WIN_TEXT = "left pad wins!"
