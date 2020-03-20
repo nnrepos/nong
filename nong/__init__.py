@@ -1,7 +1,8 @@
 from os import path
 
-import pygame as pg
+import pygame as pg  # type: ignore
 import math
+from typing import Tuple, Dict, Any, List
 
 # GLOBALS #
 
@@ -90,7 +91,7 @@ PAUSE_TEXT = "    game paused.\npress space to continue"
 MAX_SCORE = 3
 
 
-def draw_pad(screen, corner, rl):
+def draw_pad(screen, corner, rl) -> None:
     rectangle = pg.Rect(*corner, *PAD_SIZE)
     if rl == "right":
         pg.draw.rect(screen, RIGHT_PAD_COLOR, rectangle)
@@ -98,19 +99,19 @@ def draw_pad(screen, corner, rl):
         pg.draw.rect(screen, LEFT_PAD_COLOR, rectangle)
 
 
-def draw_ball(screen, corner):
+def draw_ball(screen, corner) -> None:
     rectangle = pg.Rect(*corner, *BALL_SIZE)
     pg.draw.rect(screen, BALL_COLOR, rectangle)
 
 
-def get_next_ball_corner(state_dict):
+def get_next_ball_corner(state_dict) -> Tuple[float, float]:
     next_ball_x = state_dict["ball_corner"][0] + (math.cos(state_dict["ball_radians"]) * BALL_STEP)
     next_ball_y = state_dict["ball_corner"][1] - (math.sin(state_dict["ball_radians"]) * BALL_STEP)
 
     return next_ball_x, next_ball_y
 
 
-def draw_score(state_dict, image_dict, screen):
+def draw_score(state_dict, image_dict, screen) -> None:
     left = state_dict["left_score"]
     right = state_dict["right_score"]
     assert (left in image_dict and right in image_dict), "bad input to draw_score"
@@ -120,7 +121,7 @@ def draw_score(state_dict, image_dict, screen):
     screen.blit(image_dict[right], RIGHT_SCORE_CORNER)
 
 
-def start_game(screen, image_dict):
+def start_game(screen, image_dict) -> Dict[str, Any]:
     # init dict with defaults
     state_dict = {"done": False,
                   "paused": True,
@@ -147,7 +148,7 @@ def start_game(screen, image_dict):
     return state_dict
 
 
-def tick_game(state_dict, sound_dict):
+def tick_game(state_dict, sound_dict) -> Dict[str, Any]:
     pressed = pg.key.get_pressed()
 
     tick_counters(state_dict)
@@ -157,7 +158,7 @@ def tick_game(state_dict, sound_dict):
     return state_dict
 
 
-def move_ball(state_dict, sound_dict):
+def move_ball(state_dict, sound_dict) -> Dict[str, Any]:
     current_ball_corner = state_dict["ball_corner"]
     next_ball_corner = get_next_ball_corner(state_dict)
     right_pad = state_dict["right_pad_corner"]
@@ -244,7 +245,7 @@ def move_pads(pressed, state_dict):
     return state_dict
 
 
-def tick_counters(state_dict):
+def tick_counters(state_dict) -> Dict[str, Any]:
     state_dict["ball_counter"] = (state_dict["ball_counter"] + 1) % BALL_COUNTER_MAX
     state_dict["right_pad_counter"] = (state_dict["right_pad_counter"] + 1) % RIGHT_PAD_COUNTER_MAX
     state_dict["left_pad_counter"] = (state_dict["left_pad_counter"] + 1) % LEFT_PAD_COUNTER_MAX
@@ -258,12 +259,12 @@ def tick_counters(state_dict):
     return state_dict
 
 
-def empty_screen(screen):
+def empty_screen(screen) -> None:
     rectangle = pg.Rect(*SCREEN_CORNER, *SCREEN_SIZE)
     pg.draw.rect(screen, BLACK_COLOR, rectangle)
 
 
-def render_screen(screen, state_dict, image_dict):
+def render_screen(screen, state_dict, image_dict) -> None:
     empty_screen(screen)
     draw_pad(screen, state_dict["right_pad_corner"], "right")
     draw_pad(screen, state_dict["left_pad_corner"], "left")
@@ -271,7 +272,7 @@ def render_screen(screen, state_dict, image_dict):
     draw_score(state_dict, image_dict, screen)
 
 
-def check_exit(state_dict, events):
+def check_exit(state_dict: Dict, events) -> None:
     for event in events:
         if event.type == pg.QUIT:
             state_dict["done"] = True
@@ -283,7 +284,7 @@ def check_exit(state_dict, events):
         state_dict["done"] = True
 
 
-def get_images():
+def get_images() -> Dict:
     big_sans = pg.font.Font(SANS, WIN_FONT_SIZE)
     small_sans = pg.font.Font(SANS, INSTRUCTIONS_FONT_SIZE)
 
@@ -310,25 +311,25 @@ def get_images():
     return d
 
 
-def blit_text(screen, images, location_above):
+def blit_text(screen, images: Dict, location_above: Tuple) -> None:
     assert len(images) > 0, "bad input to blit_text"
 
     height = images[0].get_height()
     max_width = max(i.get_width() for i in images)
-    corner = (location_above[0] - max_width/2, location_above[1])
+    corner = (location_above[0] - max_width / 2, location_above[1])
 
     for i, text in enumerate(images):
         my_corner = (corner[0], corner[1] + i * height)
         screen.blit(text, my_corner)
 
 
-def draw_pause(image_dict, screen):
+def draw_pause(image_dict: Dict, screen) -> None:
     blit_text(screen, image_dict["right instructions"], RIGHT_TEXT_LOCATION)
     blit_text(screen, image_dict["left instructions"], LEFT_TEXT_LOCATION)
     blit_text(screen, image_dict["pause"], PAUSE_TEXT_LOCATION)
 
 
-def check_pause(state_dict, events, screen, image_dict):
+def check_pause(state_dict: Dict, events: List, screen, image_dict) -> Dict[str, Any]:
     for event in events:
         if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
             state_dict["paused"] = not state_dict["paused"]
@@ -341,7 +342,7 @@ def check_pause(state_dict, events, screen, image_dict):
     return state_dict
 
 
-def check_winner(state_dict, screen, image_dict):
+def check_winner(state_dict: Dict, screen, image_dict: Dict) -> None:
     if state_dict["left_score"] == MAX_SCORE:
         state_dict["paused"] = state_dict["game_over"] = True
         blit_text(screen, image_dict["left win"], WIN_TEXT_LOCATION)
@@ -353,13 +354,13 @@ def check_winner(state_dict, screen, image_dict):
         pg.display.flip()
 
 
-def get_sounds():
+def get_sounds() -> Dict:
     d = {"left_pad": pg.mixer.Sound(LEFT_PAD_SOUND),
          "right_pad": pg.mixer.Sound(RIGHT_PAD_SOUND), }
     return d
 
 
-def main():
+def main() -> None:
     """
     play the nong game.
     :return:
