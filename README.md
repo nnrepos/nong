@@ -1,5 +1,5 @@
 # nong
-neural networks exercise with pong
+neural networks (not yet) exercise with pong
 
 ## installation
 to install the script `nong`, use:<br>
