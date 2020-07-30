@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="nong-nnrepos",
-    version="0.200",
+    version="0.201",
     author="NN",
     description="a neural-network based pong game",
     long_description=long_description,
@@ -22,7 +22,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='==3.7.*',
+    python_requires='>3.7',
     entry_points={
         'console_scripts': ['nong=nong.command_line:play']
     },

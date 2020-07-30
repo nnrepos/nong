@@ -1,4 +1,5 @@
 from os import path
+from abc import ABC, abstractmethod
 
 import pygame as pg  # type: ignore
 import math
@@ -6,10 +7,8 @@ from typing import Tuple, Dict, Any, List
 
 # GLOBALS #
 
-# SIZE
+# SIZES
 PIXEL_SIZE = 10
-BALL_STEP = PIXEL_SIZE * 2
-PAD_STEP = PIXEL_SIZE
 BALL_SIZE = (2 * PIXEL_SIZE, 2 * PIXEL_SIZE)
 PAD_SIZE = (2 * PIXEL_SIZE, 16 * PIXEL_SIZE)
 SCREEN_SIZE = (1600, 900)
@@ -20,8 +19,10 @@ PAD_START_Y = SCREEN_SIZE[1] / 2 - PAD_SIZE[1] / 2
 PAD_X_OFFSET = 6 * PIXEL_SIZE
 LEFT_PAD_X = PAD_X_OFFSET
 RIGHT_PAD_X = SCREEN_SIZE[0] - PAD_X_OFFSET - PAD_SIZE[0]
-BALL_START = (SCREEN_SIZE[0] / 2 - BALL_SIZE[0] / 2,
-              SCREEN_SIZE[1] / 2 - BALL_SIZE[1] / 2)
+RIGHT_PAD_START = [RIGHT_PAD_X, PAD_START_Y]
+LEFT_PAD_START = [LEFT_PAD_X, PAD_START_Y]
+BALL_START = [SCREEN_SIZE[0] / 2 - BALL_SIZE[0] / 2,
+              SCREEN_SIZE[1] / 2 - BALL_SIZE[1] / 2]
 SCREEN_CORNER = (0, 0)
 LEFT_SCORE_CORNER = ((SCREEN_SIZE[0] / 2) - 1.5 * SCORE_IMAGE_SIZE[0], SCREEN_SIZE[1] / 10)
 COLON_CORNER = ((SCREEN_SIZE[0] / 2) - 0.5 * SCORE_IMAGE_SIZE[0], SCREEN_SIZE[1] / 10)
@@ -49,12 +50,8 @@ EXIT = pg.K_ESCAPE
 
 # TIMING
 FPS = 120
-BALL_SPEED = FPS / 2.0
-RIGHT_PAD_SPEED = FPS / 2.0
-LEFT_PAD_SPEED = FPS / 2.0
-BALL_COUNTER_MAX = FPS / BALL_SPEED
-RIGHT_PAD_COUNTER_MAX = FPS / RIGHT_PAD_SPEED
-LEFT_PAD_COUNTER_MAX = FPS / LEFT_PAD_SPEED
+BALL_SPEED = 7.5
+PAD_SPEED = 6
 
 # DIRECTIONS
 EPSILON = 0.01
@@ -89,199 +86,6 @@ PAUSE_TEXT = "    game paused.\npress space to continue"
 
 # ETC
 MAX_SCORE = 3
-
-
-def draw_pad(screen, corner, rl) -> None:
-    rectangle = pg.Rect(*corner, *PAD_SIZE)
-    if rl == "right":
-        pg.draw.rect(screen, RIGHT_PAD_COLOR, rectangle)
-    else:
-        pg.draw.rect(screen, LEFT_PAD_COLOR, rectangle)
-
-
-def draw_ball(screen, corner) -> None:
-    rectangle = pg.Rect(*corner, *BALL_SIZE)
-    pg.draw.rect(screen, BALL_COLOR, rectangle)
-
-
-def get_next_ball_corner(state_dict) -> Tuple[float, float]:
-    next_ball_x = state_dict["ball_corner"][0] + (math.cos(state_dict["ball_radians"]) * BALL_STEP)
-    next_ball_y = state_dict["ball_corner"][1] - (math.sin(state_dict["ball_radians"]) * BALL_STEP)
-
-    return next_ball_x, next_ball_y
-
-
-def draw_score(state_dict, image_dict, screen) -> None:
-    left = state_dict["left_score"]
-    right = state_dict["right_score"]
-    assert (left in image_dict and right in image_dict), "bad input to draw_score"
-
-    screen.blit(image_dict[left], LEFT_SCORE_CORNER)
-    screen.blit(image_dict["colon"], COLON_CORNER)
-    screen.blit(image_dict[right], RIGHT_SCORE_CORNER)
-
-
-def start_game(screen, image_dict) -> Dict[str, Any]:
-    # init dict with defaults
-    state_dict = {"done": False,
-                  "paused": True,
-                  "game_over": False,
-                  "left_pad_corner": [LEFT_PAD_X, PAD_START_Y],
-                  "right_pad_corner": [RIGHT_PAD_X, PAD_START_Y],
-                  "ball_corner": BALL_START,
-                  "ball_counter": 0,
-                  "right_pad_counter": 0,
-                  "left_pad_counter": 0,
-                  "ball_moved": False,
-                  "right_pad_moved": False,
-                  "left_pad_moved": False,
-                  "ball_radians": RIGHT_DIRECTION,
-                  "ball_goes_right": True,
-                  "left_score": 0,
-                  "right_score": 0, }
-
-    # draw defaults
-    render_screen(screen, state_dict, image_dict)
-    draw_pause(image_dict, screen)
-    pg.display.flip()
-
-    return state_dict
-
-
-def tick_game(state_dict, sound_dict) -> Dict[str, Any]:
-    pressed = pg.key.get_pressed()
-
-    tick_counters(state_dict)
-    move_ball(state_dict, sound_dict)
-    move_pads(pressed, state_dict)
-
-    return state_dict
-
-
-def move_ball(state_dict, sound_dict) -> Dict[str, Any]:
-    current_ball_corner = state_dict["ball_corner"]
-    next_ball_corner = get_next_ball_corner(state_dict)
-    right_pad = state_dict["right_pad_corner"]
-    left_pad = state_dict["left_pad_corner"]
-
-    # ball touches right pad
-    if (state_dict["right_pad_corner"][0] + PAD_SIZE[0] > next_ball_corner[0] + BALL_SIZE[0] - EPSILON >
-            state_dict["right_pad_corner"][0]
-            and right_pad[1] - BALL_SIZE[1] < current_ball_corner[1] < right_pad[1] + PAD_SIZE[1]):
-        sound_dict["right_pad"].play()
-        ball_location_on_pad_percentage = ((current_ball_corner[1] + BALL_SIZE[1] / 2) - right_pad[1]) / float(
-            (PAD_SIZE[1]))
-        if ball_location_on_pad_percentage < 0:
-            new_ball_direction = LEFT_UPPER_LIMIT
-        elif ball_location_on_pad_percentage > 1:
-            new_ball_direction = LEFT_LOWER_LIMIT
-        else:
-            new_ball_direction = LEFT_UPPER_LIMIT + ball_location_on_pad_percentage * (
-                    LEFT_LOWER_LIMIT - LEFT_UPPER_LIMIT)
-        state_dict["ball_radians"] = new_ball_direction
-
-    # ball touches left pad
-    elif (state_dict["left_pad_corner"][0] < next_ball_corner[0] + EPSILON < state_dict["left_pad_corner"][0] +
-          PAD_SIZE[0]
-          and left_pad[1] - BALL_SIZE[1] < current_ball_corner[1] < left_pad[1] + PAD_SIZE[1]):
-        sound_dict["left_pad"].play()
-        ball_location_on_pad_percentage = ((current_ball_corner[1] + BALL_SIZE[1] / 2) - left_pad[1]) / float(
-            (PAD_SIZE[1]))
-        if ball_location_on_pad_percentage < 0:
-            new_ball_direction = RIGHT_UPPER_LIMIT
-        elif ball_location_on_pad_percentage > 1:
-            new_ball_direction = RIGHT_LOWER_LIMIT
-        else:
-            new_ball_direction = RIGHT_UPPER_LIMIT + ball_location_on_pad_percentage * (
-                    RIGHT_LOWER_LIMIT - RIGHT_UPPER_LIMIT)
-        state_dict["ball_radians"] = new_ball_direction
-
-    # ball touches top or bottom edge
-    if next_ball_corner[1] < 0 or next_ball_corner[1] + BALL_SIZE[1] > SCREEN_SIZE[1]:
-        state_dict["ball_radians"] = -state_dict["ball_radians"]
-
-    # ball touches right edge
-    if next_ball_corner[0] + BALL_SIZE[0] < 0:
-        state_dict["right_score"] += 1
-        if state_dict["right_score"] < MAX_SCORE:
-            state_dict["ball_corner"] = BALL_START
-            state_dict["ball_radians"] = RIGHT_DIRECTION
-
-    # ball touches left edge
-    elif next_ball_corner[0] > SCREEN_SIZE[0]:
-        state_dict["left_score"] += 1
-        if state_dict["left_score"] < MAX_SCORE:
-            state_dict["ball_corner"] = BALL_START
-            state_dict["ball_radians"] = LEFT_DIRECTION
-
-    # move ball
-    if not state_dict["ball_moved"]:
-        state_dict["ball_moved"] = True
-        state_dict["ball_corner"] = get_next_ball_corner(state_dict)
-
-    return state_dict
-
-
-def move_pads(pressed, state_dict):
-    # right pad
-    if (pressed[RIGHT_PAD_UP] and state_dict["right_pad_corner"][1] > 0
-            and not state_dict["right_pad_moved"]):
-        state_dict["right_pad_corner"][1] -= PAD_STEP
-        state_dict["right_pad_moved"] = True
-    if (pressed[RIGHT_PAD_DOWN] and state_dict["right_pad_corner"][1] < (SCREEN_SIZE[1] - PAD_SIZE[1])
-            and not state_dict["right_pad_moved"]):
-        state_dict["right_pad_corner"][1] += PAD_STEP
-        state_dict["right_pad_moved"] = True
-    # left pad
-    if (pressed[LEFT_PAD_UP] and state_dict["left_pad_corner"][1] > 0
-            and not state_dict["left_pad_moved"]):
-        state_dict["left_pad_corner"][1] -= PAD_STEP
-        state_dict["left_pad_moved"] = True
-    if (pressed[LEFT_PAD_DOWN] and state_dict["left_pad_corner"][1] < (SCREEN_SIZE[1] - PAD_SIZE[1])
-            and not state_dict["left_pad_moved"]):
-        state_dict["left_pad_corner"][1] += PAD_STEP
-        state_dict["left_pad_moved"] = True
-
-    return state_dict
-
-
-def tick_counters(state_dict) -> Dict[str, Any]:
-    state_dict["ball_counter"] = (state_dict["ball_counter"] + 1) % BALL_COUNTER_MAX
-    state_dict["right_pad_counter"] = (state_dict["right_pad_counter"] + 1) % RIGHT_PAD_COUNTER_MAX
-    state_dict["left_pad_counter"] = (state_dict["left_pad_counter"] + 1) % LEFT_PAD_COUNTER_MAX
-    if not state_dict["ball_counter"]:
-        state_dict["ball_moved"] = False
-    if not state_dict["right_pad_counter"]:
-        state_dict["right_pad_moved"] = False
-    if not state_dict["left_pad_counter"]:
-        state_dict["left_pad_moved"] = False
-
-    return state_dict
-
-
-def empty_screen(screen) -> None:
-    rectangle = pg.Rect(*SCREEN_CORNER, *SCREEN_SIZE)
-    pg.draw.rect(screen, BLACK_COLOR, rectangle)
-
-
-def render_screen(screen, state_dict, image_dict) -> None:
-    empty_screen(screen)
-    draw_pad(screen, state_dict["right_pad_corner"], "right")
-    draw_pad(screen, state_dict["left_pad_corner"], "left")
-    draw_ball(screen, state_dict["ball_corner"])
-    draw_score(state_dict, image_dict, screen)
-
-
-def check_exit(state_dict: Dict, events) -> None:
-    for event in events:
-        if event.type == pg.QUIT:
-            state_dict["done"] = True
-
-    mod_bits = pg.key.get_mods()
-    pressed = pg.key.get_pressed()
-
-    if (mod_bits & pg.KMOD_ALT and pressed[pg.K_F4]) or pressed[pg.K_ESCAPE]:
-        state_dict["done"] = True
 
 
 def get_images() -> Dict:
@@ -323,41 +127,204 @@ def blit_text(screen, images: Dict, location_above: Tuple) -> None:
         screen.blit(text, my_corner)
 
 
-def draw_pause(image_dict: Dict, screen) -> None:
-    blit_text(screen, image_dict["right instructions"], RIGHT_TEXT_LOCATION)
-    blit_text(screen, image_dict["left instructions"], LEFT_TEXT_LOCATION)
-    blit_text(screen, image_dict["pause"], PAUSE_TEXT_LOCATION)
-
-
-def check_pause(state_dict: Dict, events: List, screen, image_dict) -> Dict[str, Any]:
-    for event in events:
-        if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-            state_dict["paused"] = not state_dict["paused"]
-            draw_pause(image_dict, screen)
-            pg.display.flip()
-
-            if state_dict["game_over"]:
-                # reset game after game over
-                state_dict = start_game(screen, image_dict)
-    return state_dict
-
-
-def check_winner(state_dict: Dict, screen, image_dict: Dict) -> None:
-    if state_dict["left_score"] == MAX_SCORE:
-        state_dict["paused"] = state_dict["game_over"] = True
-        blit_text(screen, image_dict["left win"], WIN_TEXT_LOCATION)
-        pg.display.flip()
-
-    elif state_dict["right_score"] == MAX_SCORE:
-        state_dict["paused"] = state_dict["game_over"] = True
-        blit_text(screen, image_dict["right win"], WIN_TEXT_LOCATION)
-        pg.display.flip()
-
-
 def get_sounds() -> Dict:
     d = {"left_pad": pg.mixer.Sound(LEFT_PAD_SOUND),
          "right_pad": pg.mixer.Sound(RIGHT_PAD_SOUND), }
     return d
+
+
+class Game:
+    def __init__(self, screen, image_dict, sound_dict) -> None:
+        # reset stuff
+        self.right_pad = Pad(RIGHT_PAD_START, RIGHT_PAD_UP, RIGHT_PAD_DOWN, RIGHT_PAD_COLOR)
+        self.left_pad = Pad(LEFT_PAD_START, LEFT_PAD_UP, LEFT_PAD_DOWN, LEFT_PAD_COLOR)
+        self.ball = Ball()
+        self.done = False
+        self.paused = True
+        self.game_over = False
+        self.left_score = 0
+        self.right_score = 0
+
+        # get static objects
+        self.screen = screen
+        self.images = image_dict
+        self.sounds = sound_dict
+
+        # do cool tingz
+        self.render()
+        self.draw_pause()
+        pg.display.flip()
+
+    def reset(self):
+        self.right_pad = Pad(RIGHT_PAD_START, RIGHT_PAD_UP, RIGHT_PAD_DOWN, RIGHT_PAD_COLOR)
+        self.left_pad = Pad(LEFT_PAD_START, LEFT_PAD_UP, LEFT_PAD_DOWN, LEFT_PAD_COLOR)
+        self.ball = Ball()
+        self.done = False
+        self.paused = True
+        self.game_over = False
+        self.left_score = 0
+        self.right_score = 0
+
+    def render(self):
+        self.empty_screen()
+        self.right_pad.draw(self.screen)
+        self.left_pad.draw(self.screen)
+        self.ball.draw(self.screen)
+        self.draw_score()
+
+    def empty_screen(self) -> None:
+        rectangle = pg.Rect(*SCREEN_CORNER, *SCREEN_SIZE)
+        pg.draw.rect(self.screen, BLACK_COLOR, rectangle)
+
+    def draw_score(self) -> None:
+        left = self.left_score
+        right = self.right_score
+        assert (left in self.images and right in self.images), "bad input to draw_score"
+
+        self.screen.blit(self.images[left], LEFT_SCORE_CORNER)
+        self.screen.blit(self.images["colon"], COLON_CORNER)
+        self.screen.blit(self.images[right], RIGHT_SCORE_CORNER)
+
+    def draw_pause(self) -> None:
+        blit_text(self.screen, self.images["right instructions"], RIGHT_TEXT_LOCATION)
+        blit_text(self.screen, self.images["left instructions"], LEFT_TEXT_LOCATION)
+        blit_text(self.screen, self.images["pause"], PAUSE_TEXT_LOCATION)
+
+    def check_pause(self, events: List) -> None:
+        for event in events:
+            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
+                self.paused = not self.paused
+                self.draw_pause()
+                pg.display.flip()
+
+                if self.game_over:
+                    # reset game after game over
+                    self.reset()
+
+    def check_winner(self) -> None:
+        if self.left_score == MAX_SCORE:
+            self.paused = self.game_over = True
+            blit_text(self.screen, self.images["left win"], WIN_TEXT_LOCATION)
+            pg.display.flip()
+
+        elif self.right_score == MAX_SCORE:
+            self.paused = self.game_over = True
+            blit_text(self.screen, self.images["right win"], WIN_TEXT_LOCATION)
+            pg.display.flip()
+
+    def check_exit(self, events: List) -> None:
+        for event in events:
+            if event.type == pg.QUIT:
+                # X button clicked
+                self.done = True
+
+        mod_bits = pg.key.get_mods()
+        pressed = pg.key.get_pressed()
+        if (mod_bits & pg.KMOD_ALT and pressed[pg.K_F4]) or pressed[pg.K_ESCAPE]:
+            # alt-f4 or esc
+            self.done = True
+
+    def tick(self) -> None:
+        pressed = pg.key.get_pressed()
+        self.ball.move(self.right_pad, self.left_pad, self, self.sounds)
+        self.right_pad.move(pressed)
+        self.left_pad.move(pressed)
+
+
+class DrawableComponent(ABC):
+
+    @abstractmethod
+    def draw(self, screen) -> None:
+        pass
+
+
+class Ball(DrawableComponent):
+    def __init__(self):
+        self.corner = BALL_START
+        self.angle_in_radians = RIGHT_DIRECTION
+
+    def get_next_corner(self) -> Tuple[float, float]:
+        next_ball_x = self.corner[0] + (math.cos(self.angle_in_radians) * BALL_SPEED)
+        next_ball_y = self.corner[1] - (math.sin(self.angle_in_radians) * BALL_SPEED)
+
+        return next_ball_x, next_ball_y
+
+    def move(self, right_pad, left_pad, nong, sound_dict) -> None:
+        next_corner = self.get_next_corner()
+        # ball touches right pad
+        if (right_pad.corner[0] + PAD_SIZE[0] > next_corner[0] + BALL_SIZE[0] - EPSILON >
+                right_pad.corner[0]
+                and right_pad.corner[1] - BALL_SIZE[1] < self.corner[1] < right_pad.corner[1] + PAD_SIZE[1]):
+            sound_dict["right_pad"].play()
+            ball_location_on_pad_percentage = ((self.corner[1] + BALL_SIZE[1] / 2) - right_pad.corner[1]) / float(
+                (PAD_SIZE[1]))
+            if ball_location_on_pad_percentage < 0:
+                new_ball_direction = LEFT_UPPER_LIMIT
+            elif ball_location_on_pad_percentage > 1:
+                new_ball_direction = LEFT_LOWER_LIMIT
+            else:
+                new_ball_direction = LEFT_UPPER_LIMIT + ball_location_on_pad_percentage * (
+                        LEFT_LOWER_LIMIT - LEFT_UPPER_LIMIT)
+            self.angle_in_radians = new_ball_direction
+
+        # ball touches left pad
+        elif (left_pad.corner[0] < next_corner[0] + EPSILON < left_pad.corner[0] + PAD_SIZE[0]
+              and left_pad.corner[1] - BALL_SIZE[1] < self.corner[1] < left_pad.corner[1] + PAD_SIZE[1]):
+            sound_dict["left_pad"].play()
+            ball_location_on_pad_percentage = ((self.corner[1] + BALL_SIZE[1] / 2) - left_pad.corner[1]) / float(
+                (PAD_SIZE[1]))
+            if ball_location_on_pad_percentage < 0:
+                new_ball_direction = RIGHT_UPPER_LIMIT
+            elif ball_location_on_pad_percentage > 1:
+                new_ball_direction = RIGHT_LOWER_LIMIT
+            else:
+                new_ball_direction = RIGHT_UPPER_LIMIT + ball_location_on_pad_percentage * (
+                        RIGHT_LOWER_LIMIT - RIGHT_UPPER_LIMIT)
+            self.angle_in_radians = new_ball_direction
+
+        # ball touches top or bottom edge
+        if next_corner[1] < 0 or next_corner[1] + BALL_SIZE[1] > SCREEN_SIZE[1]:
+            self.angle_in_radians = -self.angle_in_radians
+
+        # ball touches left edge
+        if next_corner[0] + BALL_SIZE[0] < 0:
+            nong.right_score += 1
+            if nong.right_score < MAX_SCORE:
+                self.corner = BALL_START
+                self.angle_in_radians = RIGHT_DIRECTION
+
+        # ball touches right edge
+        elif next_corner[0] > SCREEN_SIZE[0]:
+            nong.left_score += 1
+            if nong.left_score < MAX_SCORE:
+                self.corner = BALL_START
+                self.angle_in_radians = LEFT_DIRECTION
+
+        # move ball after changing
+        # i use `self.get_next_corner` again because the parameters it looks at changed
+        self.corner = self.get_next_corner()
+
+    def draw(self, screen) -> None:
+        rectangle = pg.Rect(*self.corner, *BALL_SIZE)
+        pg.draw.rect(screen, BALL_COLOR, rectangle)
+
+
+class Pad(DrawableComponent):
+    def __init__(self, corner: List, up_key, down_key, color):
+        self.corner = corner
+        self.up_key = up_key
+        self.down_key = down_key
+        self.color = color
+
+    def move(self, pressed) -> None:
+        if pressed[self.up_key] and self.corner[1] > 0:
+            self.corner[1] -= PAD_SPEED
+        if pressed[self.down_key] and self.corner[1] < (SCREEN_SIZE[1] - PAD_SIZE[1]):
+            self.corner[1] += PAD_SPEED
+
+    def draw(self, screen) -> None:
+        rectangle = pg.Rect(*self.corner, *PAD_SIZE)
+        pg.draw.rect(screen, self.color, rectangle)
 
 
 def main() -> None:
@@ -374,20 +341,20 @@ def main() -> None:
     screen = pg.display.set_mode(SCREEN_SIZE)
     image_dict = get_images()
     sound_dict = get_sounds()
-    state_dict = start_game(screen, image_dict)
+    nong = Game(screen, image_dict, sound_dict)
 
-    while not state_dict["done"]:
+    while not nong.done:
         # event stuff
         events = pg.event.get()
-        check_exit(state_dict, events)
-        state_dict = check_pause(state_dict, events, screen, image_dict)
-        check_winner(state_dict, screen, image_dict)
+        nong.check_exit(events)
+        nong.check_pause(events)
+        nong.check_winner()
 
         # update state
         clock.tick(FPS)
-        if not state_dict["paused"]:
-            tick_game(state_dict, sound_dict)
-            render_screen(screen, state_dict, image_dict)
+        if not nong.paused:
+            nong.tick()
+            nong.render()
             pg.display.flip()
 
     print("goodbye")
